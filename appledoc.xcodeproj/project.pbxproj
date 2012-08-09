@@ -1120,7 +1120,7 @@
 		08FB7793FE84155DC02AAC07 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 0430;
+				LastUpgradeCheck = 0440;
 				ORGANIZATIONNAME = "Gentle Bytes";
 			};
 			buildConfigurationList = 1DEB927808733DD40010E9CD /* Build configuration list for PBXProject "appledoc" */;
@@ -1384,6 +1384,7 @@
 					"\"$(SRCROOT)/Libraries\"",
 				);
 				PRODUCT_NAME = appledoc;
+				SDKROOT = macosx10.7;
 			};
 			name = Debug;
 		};
@@ -1409,6 +1410,7 @@
 					"\"$(SRCROOT)/Libraries\"",
 				);
 				PRODUCT_NAME = appledoc;
+				SDKROOT = macosx10.7;
 			};
 			name = Release;
 		};
@@ -1451,6 +1453,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1490,6 +1493,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				FRAMEWORK_SEARCH_PATHS = (

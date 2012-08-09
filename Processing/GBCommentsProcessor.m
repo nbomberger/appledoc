@@ -709,10 +709,12 @@ typedef NSUInteger GBProcessingFlag;
 
 - (BOOL)isCrossReference:(GBCrossRefData *)data matchingObject:(id)object {
 	if ([object isTopLevelObject]) {
-		if ([object isKindOfClass:[GBClassData class]])
+		if ([object isKindOfClass:[GBClassData class]]) {
 			if ([data->description isEqualToString:[object nameOfClass]]) return YES;
-		else if ([object isKindOfClass:[GBCategoryData class]])
+        }
+		else if ([object isKindOfClass:[GBCategoryData class]]) {
 			if ([data->description isEqualToString:[object idOfCategory]]) return YES;
+        }
 		else if ([object isKindOfClass:[GBProtocolData class]])
 			if ([data->description isEqualToString:[object nameOfProtocol]]) return YES;
 	} else {
