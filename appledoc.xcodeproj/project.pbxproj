@@ -1485,6 +1485,7 @@
 					"-licucore",
 				);
 				PRODUCT_NAME = AppledocTests;
+				SDKROOT = macosx10.7;
 				TEST_HOST = "$(BUNDLE_LOADER)";
 			};
 			name = Debug;
@@ -1523,6 +1524,7 @@
 					"-licucore",
 				);
 				PRODUCT_NAME = AppledocTests;
+				SDKROOT = macosx10.7;
 				ZERO_LINK = NO;
 			};
 			name = Release;
