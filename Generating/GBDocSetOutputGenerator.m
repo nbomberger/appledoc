@@ -29,12 +29,15 @@
 - (void)initializeSimplifiedObjects;
 - (NSArray *)simplifiedObjectsFromObjects:(NSArray *)objects value:(NSString *)value index:(NSUInteger *)index;
 - (NSString *)tokenIdentifierForObject:(GBModelBase *)object;
+-(void) addGetterSetterToMethods:(GBMethodData *)property for:(NSString *)name withReturnResult:(NSArray*)results withTypes:(NSArray *)types withArguments:(NSArray *)arguments withData:(NSDictionary *)data toArray:(NSMutableArray *)members;
 
 @property (retain) NSArray *documents;
 @property (retain) NSArray *classes;
 @property (retain) NSArray *categories;
 @property (retain) NSArray *protocols;
 @property (readonly) NSMutableSet *temporaryFiles;
+
+@property (retain) id sectionID; //tmp for class's refid
 
 @end
 
@@ -84,7 +87,7 @@
 
 - (BOOL)processInfoPlist:(NSError **)error {
 #define addVarUnlessEmpty(var,key) if ([var length] > 0) [vars setObject:var forKey:key]
-	GBLogInfo(@"Writting DocSet Info.plist...");
+	GBLogInfo(@"Writing DocSet Info.plist...");
 	NSString *templateFilename = @"info-template.plist";
 	NSString *templatePath = [self templatePathForTemplateEndingWith:templateFilename];
 	if (!templatePath) {
@@ -104,6 +107,7 @@
 	addVarUnlessEmpty(self.settings.docsetFallbackURL, @"fallbackURL");
 	addVarUnlessEmpty(self.settings.docsetFeedName, @"feedName");
 	addVarUnlessEmpty(self.settings.docsetFeedURL, @"feedURL");
+    addVarUnlessEmpty(NSStringFromGBPublishedFeedFormats(self.settings.docsetFeedFormats), @"feedFormats");
 	addVarUnlessEmpty(self.settings.docsetMinimumXcodeVersion, @"minimumXcodeVersion");
 	addVarUnlessEmpty(self.settings.docsetPlatformFamily, @"platformFamily");
 	addVarUnlessEmpty(self.settings.docsetPublisherIdentifier, @"publisherIdentifier");
@@ -117,14 +121,14 @@
 	NSString *outputPath = [self outputPathToTemplateEndingWith:templateFilename];
 	NSString *filename = [outputPath stringByAppendingPathComponent:@"Info.plist"];
 	if (![self writeString:output toFile:[filename stringByStandardizingPath] error:error]) {
-		GBLogWarn(@"Failed writting Info.plist to '%@'!", filename);
+		GBLogWarn(@"Failed wrtting Info.plist to '%@'!", filename);
 		return NO;
 	}
 	return YES;
 }
 
 - (BOOL)processNodesXml:(NSError **)error {
-	GBLogInfo(@"Writting DocSet Nodex.xml file...");
+	GBLogInfo(@"Writing DocSet Nodex.xml file...");
 	NSString *templateFilename = @"nodes-template.xml";
 	NSString *templatePath = [self templatePathForTemplateEndingWith:templateFilename];
 	if (!templatePath) {
@@ -137,10 +141,10 @@
 	NSMutableDictionary *vars = [NSMutableDictionary dictionary];
 	[vars setObject:self.settings.projectName forKey:@"projectName"];
 	[vars setObject:@"index.html" forKey:@"indexFilename"];
-	[vars setObject:([self.documents count] > 0) ? [GRYes yes] : [GRNo no] forKey:@"hasDocs"];
-	[vars setObject:([self.classes count] > 0) ? [GRYes yes] : [GRNo no] forKey:@"hasClasses"];
-	[vars setObject:([self.categories count] > 0) ? [GRYes yes] : [GRNo no] forKey:@"hasCategories"];
-	[vars setObject:([self.protocols count] > 0) ? [GRYes yes] : [GRNo no] forKey:@"hasProtocols"];
+	[vars setObject:[NSNumber numberWithBool:([self.documents count] > 0)] forKey:@"hasDocs"];
+	[vars setObject:[NSNumber numberWithBool:([self.classes count] > 0)] forKey:@"hasClasses"];
+	[vars setObject:[NSNumber numberWithBool:([self.categories count] > 0)] forKey:@"hasCategories"];
+	[vars setObject:[NSNumber numberWithBool:([self.protocols count] > 0)] forKey:@"hasProtocols"];
 	[vars setObject:self.documents forKey:@"docs"];
 	[vars setObject:self.classes forKey:@"classes"];
 	[vars setObject:self.categories forKey:@"categories"];
@@ -154,14 +158,14 @@
 	NSString *filename = [outputPath stringByAppendingPathComponent:@"Nodes.xml"];
 	[self.temporaryFiles addObject:filename];
 	if (![self writeString:output toFile:[filename stringByStandardizingPath] error:error]) {
-		GBLogWarn(@"Failed writting Nodes.xml to '%@'!", filename);
+		GBLogWarn(@"Failed writing Nodes.xml to '%@'!", filename);
 		return NO;
 	}
 	return YES;
 }
 
 - (BOOL)processTokensXml:(NSError **)error {
-	GBLogInfo(@"Writting DocSet Tokens.xml files...");
+	GBLogInfo(@"Writing DocSet Tokens.xml files...");
 	
 	// Get the template and prepare single Tokens.xml file for each object.
 	NSString *templatePath = [self templatePathForTemplateEndingWith:@"tokens-template.xml"];
@@ -183,8 +187,8 @@
 	GBLogInfo(@"Indexing DocSet...");
 	GBTask *task = [GBTask task];
 	task.reportIndividualLines = YES;
-	NSArray *args = [NSArray arrayWithObjects:@"index", [self.outputUserPath stringByStandardizingPath], nil];
-	BOOL result = [task runCommand:self.settings.docsetUtilPath arguments:args block:^(NSString *output, NSString *error) {
+	NSArray *args = [NSArray arrayWithObjects:@"docsetutil", @"index", [self.outputUserPath stringByStandardizingPath], nil];
+	BOOL result = [task runCommand:self.settings.xcrunPath arguments:args block:^(NSString *output, NSString *error) {
 		if (output) GBLogDebug(@"> %@", [output stringByTrimmingWhitespaceAndNewLine]);
 		if (error) GBLogError(@"!> %@", [error stringByTrimmingWhitespaceAndNewLine]);
 	}];
@@ -229,6 +233,8 @@
 		// Prepare template variables for object. Note that we reuse the ID assigned while creating the data for Nodes.xml.
 		NSMutableDictionary *objectData = [NSMutableDictionary dictionaryWithCapacity:2];
 		[objectData setObject:[simplifiedObjectData objectForKey:@"id"] forKey:@"refid"];
+        // save refid
+        _sectionID = [objectData objectForKey:@"refid"];
 		[self addTokensXmlModelObjectDataForObject:topLevelObject toData:objectData];
 		
 		// Prepare the list of all members.
@@ -236,7 +242,7 @@
 		for (GBMethodData *method in methodsProvider.methods) {
 			NSMutableDictionary *data = [NSMutableDictionary dictionaryWithCapacity:4];
 			[data setObject:[self.settings htmlReferenceNameForObject:method] forKey:@"anchor"];
-			[self addTokensXmlModelObjectDataForObject:method toData:data];
+          	[self addTokensXmlModelObjectDataForObject:method toData:data];
 			[self addTokensXmlModelObjectDataForPropertySetterAndGetter:method withData:data toArray:membersData];
 			[membersData addObject:data];            
 		}
@@ -253,7 +259,7 @@
 		NSString *filename = [outputPath stringByAppendingPathComponent:indexName];
 		[self.temporaryFiles addObject:filename];
 		if (![self writeString:output toFile:[filename stringByStandardizingPath] error:error]) {
-			GBLogWarn(@"Failed writting tokens file '%@'!", filename);
+			GBLogWarn(@"Failed writing tokens file '%@'!", filename);
 			*index = idx;
 			return NO;
 		}
@@ -280,7 +286,7 @@
 				}
 			}
 			if ([related count] > 0) {
-				[data setObject:[GRYes yes] forKey:@"hasRelatedTokens"];
+				[data setObject:[NSNumber numberWithBool:YES] forKey:@"hasRelatedTokens"];
 				[data setObject:related forKey:@"relatedTokens"];
 			}
 		}
@@ -288,6 +294,7 @@
 	if ([object isKindOfClass:[GBMethodData class]]) {
 		GBMethodData *method = (GBMethodData *)object;
 		[data setObject:method.formattedComponents forKey:@"formattedComponents"];
+        [data setObject:_sectionID forKey:@"refid"];
 		if (method.comment) {
 			if (method.comment.hasMethodParameters) {
 				NSMutableArray *arguments = [NSMutableArray arrayWithCapacity:[method.comment.methodParameters count]];
@@ -298,7 +305,7 @@
 					[arguments addObject:argData];
 				}
 				[data setObject:arguments forKey:@"parameters"];
-				[data setObject:[GRYes yes] forKey:@"hasParameters"];
+				[data setObject:[NSNumber numberWithBool:YES] forKey:@"hasParameters"];
 			}
 			if (method.comment.hasMethodResult) {
 				NSDictionary *resultData = [NSDictionary dictionaryWithObject:method.comment.methodResult forKey:@"abstract"];
@@ -318,26 +325,42 @@
 	GBMethodData *property = (GBMethodData *)method;
 	if (!property.isProperty) return;
 		
-	// Setter: returns void, has an argument of the same type as the property, use property's setterSelector as name and avoid duplication of the colon by trimming it. Copy source infos from property.
+	// Setter: returns void, has an argument of the same type as the property, use property's setterSelector as name and avoid duplication of the colon by trimming it. Copy source infos from property.    
 	NSArray *setterResults = [NSArray arrayWithObjects:@"void", nil];
 	NSArray *setterTypes = [property methodResultTypes];
 	NSString *setterName = [property propertySetterSelector];
-	setterName = [setterName stringByTrimmingCharactersInSet:[NSCharacterSet punctuationCharacterSet]];
-	NSArray *setterArgs = [NSArray arrayWithObject:[GBMethodArgument methodArgumentWithName:setterName types:setterTypes var:@"val"]];
-	GBMethodData *setterMethod = [GBMethodData methodDataWithType:GBMethodTypeInstance result:setterResults arguments:setterArgs];
-	GBLogDebug(@"Adding setter method %@ for property: %@", setterMethod, property);
-	setterMethod.parentObject = property.parentObject;
-	setterMethod.comment = property.comment;
-	for (GBSourceInfo *info in property.sourceInfos) {
-		[setterMethod registerSourceInfo:info];
-	}
-	
-	// Add Setter to XML and also copy anchor from property, override declaration with @property one.
-	NSMutableDictionary *setterData = [NSMutableDictionary dictionaryWithCapacity:4];
-	[setterData setObject:[self.settings htmlReferenceNameForObject:property] forKey:@"anchor"];
-	[self addTokensXmlModelObjectDataForObject:setterMethod toData:setterData];
-	[setterData setObject:[data objectForKey:@"formattedComponents"] forKey:@"formattedComponents"];
-	[members addObject:setterData];
+    setterName = [setterName stringByTrimmingCharactersInSet:[NSCharacterSet punctuationCharacterSet]];
+    NSArray *setterArgs = [NSArray arrayWithObject:[GBMethodArgument methodArgumentWithName:setterName types:setterTypes var:@"val"]];
+    [self addGetterSetterToMethods:property for:setterName withReturnResult:setterResults withTypes:setterTypes withArguments:setterArgs withData:data toArray:members];
+    
+    // Getter: returns the same as property, use property's getterSelector as name, takes no arguments. Copy source infos from property.
+    NSArray *getterResults = [NSArray arrayWithObjects:property.methodReturnType, nil];
+    NSArray *getterTypes = [property methodResultTypes];
+    NSString *getterName = [property propertyGetterSelector];
+    NSArray *getterArgs = [NSArray arrayWithObject:[GBMethodArgument methodArgumentWithName:getterName types:getterTypes var:nil]];
+    [self addGetterSetterToMethods:property for:getterName withReturnResult:getterResults withTypes:getterTypes withArguments:getterArgs withData:data toArray:members];
+}
+
+-(void) addGetterSetterToMethods:(GBMethodData *)property
+                       for:(NSString *)name
+          withReturnResult:(NSArray*)results
+                 withTypes:(NSArray *)types
+             withArguments:(NSArray *)arguments
+               withData:(NSDictionary *)data
+                toArray:(NSMutableArray *)members
+{
+    GBMethodData *method = [GBMethodData methodDataWithType:GBMethodTypeInstance result:results arguments:arguments];
+    method.parentObject = property.parentObject;
+    method.comment = property.comment;
+    for (GBSourceInfo *info in property.sourceInfos) {
+        [method registerSourceInfo:info];
+    }
+    NSMutableDictionary *methodData = [NSMutableDictionary dictionaryWithCapacity:4];
+    [methodData setObject:[self.settings htmlReferenceNameForObject:property] forKey:@"anchor"];
+    [self addTokensXmlModelObjectDataForObject:method toData:methodData];
+    [methodData setObject:[data objectForKey:@"formattedComponents"] forKey:@"formattedComponents"];
+    [members addObject:methodData];
+    
 }
 
 - (NSString *)tokenIdentifierForObject:(GBModelBase *)object {
